@@ -85,7 +85,6 @@
         "vmSize": {
             "type": "string",
             "allowedValues": [
-                "Standard_D2s_v3",
                 "Standard_D4s_v3"
             ],
             "metadata": {

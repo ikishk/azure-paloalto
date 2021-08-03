@@ -134,13 +134,6 @@
         "description": "Subnet for the Untrust"
       }
     },
-    "subnet2Name": {
-      "type": "string",
-      "defaultValue": "Trust",
-      "metadata": {
-        "description": "Subnet for the Trust"
-      }
-    },
     "subnet0Prefix": {
       "type": "string",
       "defaultValue": "192.168.0.0/24",
@@ -153,13 +146,6 @@
       "defaultValue": "192.168.1.0/24",
       "metadata": {
         "description": "Untrust subnet CIDR"
-      }
-    },
-    "subnet2Prefix": {
-      "type": "string",
-      "defaultValue": "192.168.2.0/24",
-      "metadata": {
-        "description": "Trust subnet CIDR"
       }
     },
     "subnet0StartAddress": {
@@ -176,13 +162,6 @@
         "description": "Untrust subnet start address"
       }
     },
-    "subnet2StartAddress": {
-      "type": "string",
-      "defaultValue": "192.168.2.4",
-      "metadata": {
-        "description": "Trust subnet start address"
-      }
-    }
     },
     "variables": {
         "apiVersion": "2015-06-15",
@@ -192,13 +171,11 @@
         "fwpublicIPName": "[concat(parameters('vmName'), '-fwMgmtPublicIP')]",
         "nicName": "[concat(parameters('vmName'), '-eth')]",
         "FWPrivateIPAddressUntrust": "[parameters('subnet1StartAddress')]",
-        "FWPrivateIPAddressTrust": "[parameters('subnet2StartAddress')]",
         "publicIPAddressType": "Dynamic",
         "vnetID": "[resourceId('Microsoft.Network/virtualNetworks',parameters('virtualNetworkName'))]",
         "nsgname-mgmt": "[concat(parameters('vmName'), '-DefaultNSG')]",
         "subnet0Ref": "[concat(variables('vnetID'),'/subnets/',parameters('subnet0Name'))]",
         "subnet1Ref": "[concat(variables('vnetID'),'/subnets/',parameters('subnet1Name'))]",
-        "subnet2Ref": "[concat(variables('vnetID'),'/subnets/',parameters('subnet2Name'))]",
 	"storageAccountSetupURL" : "[concat(parameters('baseUrl'),'/storageAccount-',parameters('storageAccountNewOrExisting'),'.json')]",
 	"vmTemplateUrl": "[concat(parameters('baseUrl'), '/virtual-machine-', parameters('authenticationType'),'.json')]"
     },
@@ -313,11 +290,7 @@
                 "properties": {
                     "addressPrefix": "[parameters('subnet1Prefix')]"
                 }
-            }, {
-                "name": "[parameters('subnet2Name')]",
-                "properties": {
-                    "addressPrefix": "[parameters('subnet2Prefix')]"
-                }
+            }
             }]
         }
     }, {

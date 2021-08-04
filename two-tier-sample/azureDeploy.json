@@ -90,6 +90,12 @@
     "subnet0Prefix": "[concat(variables('IPAddressPrefix'), '.0.0/24')]",
     "subnet1Name": "Untrust",
     "subnet1Prefix": "[concat(variables('IPAddressPrefix'), '.1.0/24')]",
+    "subnet2Name": "Trust",
+    "subnet2Prefix": "[concat(variables('IPAddressPrefix'), '.2.0/24')]",
+    "subnet3Name": "Web",
+    "subnet3Prefix": "[concat(variables('IPAddressPrefix'), '.3.0/24')]",
+    "subnet4Name": "DB",
+    "subnet4Prefix": "[concat(variables('IPAddressPrefix'), '.4.0/24')]",
     "nicName": "eth",
     "FWPrivateIPAddressMgmt": "[concat(variables('IPAddressPrefix'), '.0.4')]",
     "FWPrivateIPAddressUntrust": "[concat(variables('IPAddressPrefix'), '.1.4')]",
@@ -108,6 +114,12 @@
     "nsgname-untrust": "DefaultNSG",
     "subnet0Ref": "[concat(variables('vnetID'),'/subnets/',variables('subnet0Name'))]",
     "subnet1Ref": "[concat(variables('vnetID'),'/subnets/',variables('subnet1Name'))]",
+    "subnet2Ref": "[concat(variables('vnetID'),'/subnets/',variables('subnet2Name'))]",
+    "subnet3Ref": "[concat(variables('vnetID'),'/subnets/',variables('subnet3Name'))]",
+    "subnet4Ref": "[concat(variables('vnetID'),'/subnets/',variables('subnet4Name'))]",
+    "routeTableWeb": "Web-to-FW",
+    "routeTableDB": "DB-to-FW",
+    "routeTableTrust": "Trust-to-intranetwork",
     "dnsnamefw": "[concat(variables('dnsNameForFwPublicIP'), variables('unqString'))]",
     "dnsnameweb": "[concat(variables('dnsNameForWebPublicIP'), variables('unqString'))]",
     "web-vm-name": "webserver-vm",
@@ -200,11 +212,77 @@
         }
     },
     {
+        "apiVersion": "[variables('apiVersion')]",
+        "type": "Microsoft.Network/routeTables",
+        "name": "[variables('routeTableTrust')]",
+        "location": "[variables('location')]",
+        "properties": {
+            "routes": [{
+                "name": "Trust-to-intranetwork",
+                "properties": {
+                    "addressPrefix": "0.0.0.0/0",
+                    "nextHopType": "VirtualAppliance",
+                    "nextHopIpAddress": "[variables('FWPrivateIPAddressTrust')]"
+                }
+            }]
+        }
+    },
+    {
+        "apiVersion": "[variables('apiVersion')]",
+        "type": "Microsoft.Network/routeTables",
+        "name": "[variables('routeTableWeb')]",
+        "location": "[variables('location')]",
+        "properties": {
+            "routes": [{
+                "name": "Web-to-Firewall-DB",
+                "properties": {
+                    "addressPrefix": "[variables('subnet4Prefix')]",
+                    "nextHopType": "VirtualAppliance",
+                    "nextHopIpAddress": "[variables('FWPrivateIPAddressTrust')]"
+                }
+            },
+            {
+                "name": "Web-default-route",
+                "properties": {
+                    "addressPrefix": "0.0.0.0/0",
+                    "nextHopType": "VirtualAppliance",
+                    "nextHopIpAddress": "[variables('FWPrivateIPAddressTrust')]"
+                }
+            }]
+        }
+    },
+    {
+        "apiVersion": "[variables('apiVersion')]",
+        "type": "Microsoft.Network/routeTables",
+        "name": "[variables('routeTableDB')]",
+        "location": "[variables('location')]",
+        "properties": {
+            "routes": [{
+                "name": "DB-to-Firewall-Web",
+                "properties": {
+                    "addressPrefix": "[variables('subnet3Prefix')]",
+                    "nextHopType": "VirtualAppliance",
+                    "nextHopIpAddress": "[variables('FWPrivateIPAddressTrust')]"
+                }
+            },
+            {
+                "name": "DB-default-route",
+                "properties": {
+                    "addressPrefix": "0.0.0.0/0",
+                    "nextHopType": "VirtualAppliance",
+                    "nextHopIpAddress": "[variables('FWPrivateIPAddressTrust')]"
+                }
+            }]
+        }
+    },
+    {
       "apiVersion": "[variables('apiVersion')]",
       "type": "Microsoft.Network/virtualNetworks",
       "name": "[variables('virtualNetworkName')]",
       "location": "[variables('location')]",
       "dependsOn": [
+         "[concat('Microsoft.Network/routeTables/', variables('routeTableWeb'))]",
+         "[concat('Microsoft.Network/routeTables/', variables('routeTableDB'))]",
          "[concat('Microsoft.Network/networkSecurityGroups/', variables('nsgname-mgmt'))]",
                   "[concat('Microsoft.Network/networkSecurityGroups/', variables('nsgname-untrust'))]"
       ],
@@ -232,6 +310,27 @@
             "networkSecurityGroup": {
                  "id": "[resourceId('Microsoft.Network/networkSecurityGroups', variables('nsgname-untrust'))]"
             }
+            }
+          },
+          {
+           "name": "[variables('subnet2Name')]",
+            "properties": {
+            "addressPrefix": "[variables('subnet2Prefix')]",
+            "routeTable": {
+                  "id": "[resourceId('Microsoft.Network/routeTables', variables('routeTableTrust'))]"
+              }
+            }
+          },
+          {
+           "name": "[variables('subnet3Name')]",
+            "properties": {
+            "addressPrefix": "[variables('subnet3Prefix')]"
+            }
+          },
+          {
+           "name": "[variables('subnet4Name')]",
+            "properties": {
+            "addressPrefix": "[variables('subnet4Prefix')]"
             }
           }
         ]
@@ -297,6 +396,85 @@
           ]
         }
     },
+    {
+        "apiVersion": "[variables('apiVersion')]",
+        "type": "Microsoft.Network/networkInterfaces",
+        "name": "[concat('FW',variables('nicName'), '2')]",
+        "location": "[variables('location')]",
+        "dependsOn": [
+            "[concat('Microsoft.Network/virtualNetworks/', variables('virtualNetworkName'))]"
+        ],
+        "tags": {
+          "displayName": "[concat('NetworkInterfaces', '2')]"
+        },
+        "properties": {
+          "enableIPForwarding": true,
+          "ipConfigurations": [
+            {
+              "name": "[concat('ipconfig', '2')]",
+              "properties": {
+                "privateIPAllocationMethod": "Static",
+                "privateIPAddress": "[variables('FWPrivateIPAddressTrust')]",
+                "subnet": {
+                  "id": "[variables(concat('subnet','2','Ref'))]"
+                }
+              }
+            }
+          ]
+        }
+    },
+    {
+        "apiVersion": "[variables('apiVersion')]",
+        "type": "Microsoft.Network/networkInterfaces",
+        "name": "[concat('Web', variables('nicName'), '0')]",
+        "location": "[variables('location')]",
+        "dependsOn": [
+            "[concat('Microsoft.Network/virtualNetworks/', variables('virtualNetworkName'))]"
+        ],
+        "tags": {
+          "displayName": "[concat('NetworkInterfaces', '3')]"
+        },
+        "properties": {
+          "ipConfigurations": [
+            {
+              "name": "[concat('ipconfig', '3')]",
+              "properties": {
+                "privateIPAllocationMethod": "Static",
+                "privateIPAddress": "[variables('WebPrivateIPAddress')]",
+                "subnet": {
+                  "id": "[variables(concat('subnet','3','Ref'))]"
+                }
+              }
+            }
+          ]
+        }
+    },
+    {
+        "apiVersion": "[variables('apiVersion')]",
+        "type": "Microsoft.Network/networkInterfaces",
+        "name": "[concat('DB', variables('nicName'), '0')]",
+        "location": "[variables('location')]",
+        "dependsOn": [
+            "[concat('Microsoft.Network/virtualNetworks/', variables('virtualNetworkName'))]"
+        ],
+        "tags": {
+          "displayName": "[concat('NetworkInterfaces', '4')]"
+        },
+        "properties": {
+          "ipConfigurations": [
+            {
+              "name": "[concat('ipconfig', '4')]",
+              "properties": {
+                "privateIPAllocationMethod": "Static",
+                "privateIPAddress": "[variables('DBPrivateIPAddress')]",
+                "subnet": {
+                  "id": "[variables(concat('subnet','4','Ref'))]"
+                }
+              }
+            }
+          ]
+        }
+    },
       {
         "apiVersion": "[variables('apiVersion')]",
         "type": "Microsoft.Compute/virtualMachines",
@@ -309,7 +487,8 @@
         },
         "dependsOn": [
            "[concat('Microsoft.Network/networkInterfaces/', 'FW' , variables('nicName'), '0')]",
-           "[concat('Microsoft.Network/networkInterfaces/', 'FW' , variables('nicName'), '1')]"
+           "[concat('Microsoft.Network/networkInterfaces/', 'FW' , variables('nicName'), '1')]",
+           "[concat('Microsoft.Network/networkInterfaces/', 'FW' , variables('nicName'), '2')]"
         ],
         "properties": {
             "hardwareProfile": {
@@ -345,6 +524,10 @@
              {
               "id": "[resourceId('Microsoft.Network/networkInterfaces', concat('FW', variables('nicName'),'1'))]",
                "properties": { "primary": false }
+            },
+            {
+              "id": "[resourceId('Microsoft.Network/networkInterfaces', concat('FW', variables('nicName'),'2'))]",
+               "properties": { "primary": false }
             }
           ]
          }
@@ -357,7 +540,9 @@
         "location": "[variables('location')]",
         "dependsOn": [
            "[concat('Microsoft.Network/networkInterfaces/', 'FW', variables('nicName'), '0')]",
-           "[concat('Microsoft.Network/networkInterfaces/', 'FW', variables('nicName'), '1')]"
+           "[concat('Microsoft.Network/networkInterfaces/', 'FW', variables('nicName'), '1')]",
+           "[concat('Microsoft.Network/networkInterfaces/', 'FW', variables('nicName'), '2')]",
+           "[concat('Microsoft.Network/networkInterfaces/', 'Web', variables('nicName'), '0')]"
         ],
         "properties": {
             "hardwareProfile": {
@@ -401,7 +586,9 @@
         "location": "[variables('location')]",
         "dependsOn": [
            "[concat('Microsoft.Network/networkInterfaces/', 'FW', variables('nicName'), '0')]",
-           "[concat('Microsoft.Network/networkInterfaces/', 'FW', variables('nicName'), '1')]"
+           "[concat('Microsoft.Network/networkInterfaces/', 'FW', variables('nicName'), '1')]",
+           "[concat('Microsoft.Network/networkInterfaces/', 'FW', variables('nicName'), '2')]",
+           "[concat('Microsoft.Network/networkInterfaces/', 'DB', variables('nicName'), '0')]"
         ],
         "properties": {
             "hardwareProfile": {
